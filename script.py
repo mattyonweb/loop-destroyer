@@ -19,12 +19,15 @@ import argparse
 parser = argparse.ArgumentParser(description='Destroy and loop.')
 parser.add_argument('input_dir', help="dir containing .wav files")
 parser.add_argument('--output_dir', help="dir for output files")
+parser.add_argument('--reverse', help="dir for output files", action="store_true", default=False)
 args = parser.parse_args()
 
-CURRENT_DIR = "." if args.input_dir is None else args.input_dir
+CURRENT_DIR = args.input_dir
 TEMP_DIR    = os.path.join(CURRENT_DIR, ".out")
 FINAL_DIR   = os.path.join(CURRENT_DIR, "finale") if args.output_dir is None else args.output_dir
+REVERSE     = args.reverse
 
+print(CURRENT_DIR)
 # =========================================================== #
 
 # Crea le cartelle temporanee e finali
@@ -44,13 +47,13 @@ input_files = [f for f in os.listdir(CURRENT_DIR) if f.endswith(".wav")]
 # dal sample iniziale; quindi, concatenali.
 for input_file in input_files:
     # Copiamo il sample originale in TEMP_DIR
-    copy(input_file,
+    copy(os.path.join(CURRENT_DIR, input_file),
          gen_fname(TEMP_DIR, 0, "wav"))
 
     # Applica al file della precedente iterazione (i-1) l'effetto
     # e crea il nuovo file (indice: i)
     for i in range(1, 20):
-        effect = harm_gen(i, 1/400, 1/(480), -1/(430))
+        effect = harm_gen(i, 1/400, 1/480, -1/430)
         base_cmd = sox(gen_fname(TEMP_DIR, i-1, "wav"),
                        gen_fname(TEMP_DIR, i, "wav"))
 
@@ -63,8 +66,13 @@ for input_file in input_files:
         
     # Concatena tutti i file progressivamente degradati in un
     # unico file, salvalo in FINAL_DIR
-    cmd = ("sox " + os.path.join(TEMP_DIR, "*.wav") + " " +
-                    os.path.join(FINAL_DIR, input_file))
+    if REVERSE:
+        cmd = ("sox " + " ".join([gen_fname(TEMP_DIR, i, "wav") for i in range(19, 0, -1)]) +
+               " " + os.path.join(FINAL_DIR, input_file))
+    else:
+        cmd = ("sox " + os.path.join(TEMP_DIR, "*.wav") + " " +
+               os.path.join(FINAL_DIR, input_file))
+        
     subprocess.run(cmd.split(" "), stdout=subprocess.PIPE)
 
     # Rimuovi i singoli samples degradati, non servono più
@@ -84,5 +92,5 @@ os.system(" ".join(merge_cmd))
 
 # =========================================================== #
 # Crea spettrogramma
-cmd = f"ffmpeg -i out.mp3 -filter_complex showspectrum=mode=separate:color=intensity:slide=1:scale=cbrt:size=1050x500:fps=60 -y -acodec copy video.mp4"
+cmd = f"ffmpeg -i out.mp3 -filter_complex showspectrum=mode=separate:color=intensity:slide=1:scale=cbrt:size=1050x500:fps=1 -y -acodec copy video.mp4"
 subprocess.run(cmd.split(" "))
